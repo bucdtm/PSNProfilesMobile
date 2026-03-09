@@ -3,7 +3,7 @@
 ![PlayStation Trophies](https://img.asmedia.epimg.net/resizer/v2/7VLOQNSS5BG4DBUCK6C3PZJCOI.jpg?auth=0f9eeb3703476fa38393810b1d27f43b6df8c23bf6a1147fb525ec4c7a591cd2&width=1472&height=828&smart=true&height=20%)
 
 ## Overview
-PSNProfilesMobile is an Android application designed to provide mobile friendly https://psnprofiles.com/.
+PSNProfilesMobile is an Android application designed to provide mobile friendly ui for https://psnprofiles.com/.
 
 It utilizes a `WebView` to load the website and injects custom CSS to hide advertisements, force the screen width to fit mobile devices, and restructure the layout for easier reading.
 
