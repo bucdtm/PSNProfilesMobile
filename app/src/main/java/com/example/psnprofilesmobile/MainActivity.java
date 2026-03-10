@@ -4,103 +4,158 @@ import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+// Android imports
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
-import java.io.BufferedReader;
+// import java.io.BufferedReader; Deprecated imports will no longer be used with the new website parser
 import java.io.InputStream;
-import java.io.InputStreamReader;
+// import java.io.InputStreamReader; Deprecated imports will no longer be used with the new website parser
 
+// JSoup imports
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+import java.io.IOException;
 
 public class MainActivity extends AppCompatActivity {
 
-    //Declaration a webview to interact with the webview element
+    // Declaration of a WebView to interact with the webview element
     private WebView myWebView;
+    private String userAgent;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //we set the content view to the layout we defined before in activity_main.xml
+        // We set the content view to the layout we defined before in activity_main.xml
         setContentView(R.layout.activity_main);
 
-        //find the WebView element by this id
+        // Find the WebView element by its ID
         myWebView = findViewById(R.id.webView);
 
-        //we get the websettings object to configure the webview setting
+        // We get the WebSettings object to configure the WebView settings
         WebSettings webSettings = myWebView.getSettings();
 
-        //enable javascript
+        // Enable JavaScript
         webSettings.setJavaScriptEnabled(true);
-        // we activate the dom storage
+        // We activate the DOM storage
         webSettings.setDomStorageEnabled(true);
-
-        // we activate the cookies
+        // If not, uses network
+        webSettings.setCacheMode(webSettings.LOAD_DEFAULT);
+        // Hardware Acceleration to improve performance
+        myWebView.setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null);
+        // Images dont load first to improve performance !!CHECK LATER onPageFinished()
+        // METHOD
+        webSettings.setLoadsImagesAutomatically(false);
+        // Save User-Agent for Jsoup interceptor
+        userAgent = webSettings.getUserAgentString();
+        // We activate cookies
         android.webkit.CookieManager cookieManager = android.webkit.CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
 
-        // we accept the thirdparty cookies
+        // We accept third-party cookies
         cookieManager.setAcceptThirdPartyCookies(myWebView, true);
 
-
-        //set webviewClient to ensure link open within the webView not the broser
+        // Set WebViewClient to ensure links open within the WebView, not the browser
         myWebView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                //once we finished the page load, we inject the new css
-                inyectCSS(view);
+                // We load the images after the page has finished loading
+                view.getSettings().setLoadsImagesAutomatically(true);
+            }
+
+            // Completely revamped interceptor method to inject CSS before it loads,
+            // and to fetch the cookies from the WebView so the connection stays logged in!
+            // old CSS injection is greatly deprecated after using jsoup (API that fetches
+            // data)
+            @Override
+            public android.webkit.WebResourceResponse shouldInterceptRequest(WebView view,
+                    android.webkit.WebResourceRequest request) {
+                String url = request.getUrl().toString();
+
+                // We only want to intercept the main HTML documents (GET requests) to inject
+                // our CSS before it loads
+                if (request.isForMainFrame() && request.getMethod().equalsIgnoreCase("GET")
+                        && url.contains("psnprofiles.com")) {
+                    try {
+                        // Fetch the cookies from the WebView so the connection stays logged in!
+                        String cookies = android.webkit.CookieManager.getInstance().getCookie(url);
+
+                        // Use JSoup to fetch the HTML content
+                        org.jsoup.Connection connection = Jsoup.connect(url)
+                                .userAgent(userAgent);
+                        if (cookies != null) {
+                            connection.header("Cookie", cookies);
+                        }
+                        Document document = connection.get();
+
+                        // Add the Viewport Meta tag
+                        document.head().append(
+                                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no\">");
+
+                        // Add our custom CSS directly to the HEAD
+                        String css = getCSSFromAssets();
+                        document.head().append("<style>" + css + "</style>");
+
+                        // Return the modified HTML back to the WebView as a WebResourceResponse
+                        InputStream modifiedHtml = new java.io.ByteArrayInputStream(
+                                document.outerHtml().getBytes("UTF-8"));
+                        return new android.webkit.WebResourceResponse("text/html", "UTF-8", modifiedHtml);
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                // For all other requests (images, standard css, scripts), let them load
+                // normally
+                return super.shouldInterceptRequest(view, request);
             }
         });
 
-        myWebView.loadUrl("https://psnprofiles.com/guides");
-
-
+        myWebView.loadUrl("https://psnprofiles.com/guides/popular");
     }
 
-    // we give the punction the WebView object because we want to modify his content
-    private void inyectCSS(WebView view) {
-        try {
-            // we open the inputStream so we can read the static resource located in the assets directory
-            InputStream inputStream = getAssets().open("style_psn.css");
+    // New function that reassures the user not to quit the app if he tries to go
+    // back or presses the back button
+    @Override
+    public void onBackPressed() {
+        if (myWebView != null && myWebView.canGoBack()) {
+            // If the WebView can go back, it will go back
+            myWebView.goBack();
+        } else {
+            // Otherwise, it will exit the app
+            super.onBackPressed();
+        }
+    }
 
-            //We wrap the InputStream ina  InputStreamReader in order to decode the bytes in to characters,
-            // and use the BufferReader to read the text in blocks in order to improve the I/O performance
-            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-            StringBuilder textConstructor = new StringBuilder();
-            String line;
+    @Override
+    protected void onDestroy() {
+        if (myWebView != null) {
+            myWebView.destroy();
+        }
+        super.onDestroy();
+    }
 
-            //We iterate thru the data flow line by line and annex it to the buffer of the StringBuilder
-            while ((line = reader.readLine()) != null) {
-                textConstructor.append(line);
-            }
+    // We fetch the CSS from the assets folder as a String so JSoup can inject it
+    // into the HTML document before serving it
+    private String getCSSFromAssets() {
+        try (InputStream inputStream = getAssets().open("style_psn.css")) {
 
-            //We extract the content from the buffer as a immutable String
-            String css = textConstructor.toString();
+            // We allocate a byte array of the exact size of the file and read it all at
+            // once
+            byte[] buffer = new byte[inputStream.available()];
+            inputStream.read(buffer);
 
-            //we close the in flow to release the memory and system resources
-            inputStream.close();
-
-            // We create a <meta> element to override the WebView default viewport behavior
-            // 'width=device-width' forces the webpage rendering width to match the device's physical screen width
-            // 'initial-scale=1.0, maximum-scale=1.0, user-scalable=no' locks the zoom level, giving it a native app feel
-            String js = "var meta = document.createElement('meta');" +
-                    "meta.name = 'viewport';" +
-                    "meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';" +
-                    "document.head.appendChild(meta);" +
-
-                    // We create a <style> node, assign our parsed CSS string to it,
-                    // and attach it to the <head> of the DOM.
-                    "var style = document.createElement('style');" +
-                    "style.innerHTML = '" + css + "';" +
-                    "document.head.appendChild(style);";
-
-            // we execute the JS script asynchronously int the WebView context
-            view.evaluateJavascript(js, null);
-
+            // We extract the content from the buffer as an immutable String
+            return new String(buffer);
 
         } catch (Exception e) {
             e.printStackTrace();
+            return "";
         }
     }
 }
