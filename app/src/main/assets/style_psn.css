@@ -1,9 +1,9 @@
-/* Hide the adds */
+/* Hide the ads */
 #leftAd, #rightAd, .wide-ad, .side-ad {
     display: none !important;
 }
 
-/* Force the screen width*/
+/* Force the screen width */
 .width, #content, .page, body, html {
     width: 100% !important;
     max-width: 100% !important;
@@ -11,23 +11,23 @@
     padding: 0 !important;
     margin: 0 !important;
     box-sizing: border-box !important;
-    overflow-x: hidden !important; /* Evita el scroll horizontal */
+    overflow-x: hidden !important; /* Prevents horizontal scrolling */
 }
 
-/* we change the sctructure form row to column */
+/* We change the structure from row to column */
 .row {
     display: flex !important;
     flex-direction: column !important;
 }
 
-/* we tell the columns that they have to ocupe the 100% of the width */
+/* We tell the columns to occupy 100% of the width */
 .col-xs, .col-xs-4, .col-xs-8 {
     width: 100% !important;
     max-width: 100% !important;
 }
 
 
-/* we give space to the principal boxes so the text looks prettier*/
+/* We give spacing to the main boxes so the text looks better */
 .box, .guide {
     width: 100% !important;
     box-sizing: border-box !important;
